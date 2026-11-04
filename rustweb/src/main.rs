@@ -4,6 +4,7 @@ use rustweb::static_files;
 use std::io::{BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
+use std::thread;
 
 fn handle_connection(mut stream: TcpStream) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -34,8 +35,8 @@ fn main() {
     println!("Listening on 127.0.0.1:8080");
 
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
+        let Ok(stream) = stream else { continue };
         println!("Connection from {}", stream.peer_addr().unwrap());
-        handle_connection(stream);
+        thread::spawn(move || handle_connection(stream));
     }
 }
