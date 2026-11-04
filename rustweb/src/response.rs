@@ -62,18 +62,27 @@ pub struct Response {
     pub headers: Vec<(String, String)>,
     /// The body bytes.
     pub body: Vec<u8>,
+    /// If true, the body is left out when serializing (for `HEAD`),
+    /// but `Content-Length` still reflects its size.
+    pub head_only: bool,
 }
 
 impl Response {
     /// Creates an empty response with the given status.
     pub fn new(status: StatusCode) -> Self {
-        Response { status, headers: Vec::new(), body: Vec::new() }
+        Response { status, headers: Vec::new(), body: Vec::new(), head_only: false }
     }
 
     /// Sets the body and its `Content-Type`.
     pub fn with_body(mut self, content_type: &str, body: Vec<u8>) -> Self {
         self.headers.push(("Content-Type".to_string(), content_type.to_string()));
         self.body = body;
+        self
+    }
+
+    /// Marks this as the answer to a `HEAD` request: headers only, no body.
+    pub fn for_head(mut self) -> Self {
+        self.head_only = true;
         self
     }
 
@@ -88,7 +97,9 @@ impl Response {
         head.push_str(&format!("Content-Length: {}\r\n\r\n", self.body.len()));
 
         let mut bytes = head.into_bytes();
-        bytes.extend_from_slice(&self.body);
+        if !self.head_only {
+            bytes.extend_from_slice(&self.body);
+        }
         bytes
     }
 }
@@ -106,5 +117,16 @@ mod tests {
         assert!(text.starts_with("HTTP/1.1 404 Not Found\r\n"));
         assert!(text.contains("Content-Length: 4\r\n"));
         assert!(text.ends_with("\r\n\r\nnope"));
+    }
+
+        #[test]
+    fn head_keeps_length_but_drops_body() {
+        let bytes = Response::new(StatusCode::Ok)
+            .with_body("text/plain", b"hello".to_vec())
+            .for_head()
+            .to_bytes();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("Content-Length: 5\r\n"));
+        assert!(text.ends_with("\r\n\r\n"));
     }
 }

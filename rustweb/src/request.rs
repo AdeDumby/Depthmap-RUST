@@ -1,5 +1,5 @@
 //! HTTP request parsing.
-
+use std::io::{self, BufRead};
 use std::collections::HashMap;
 
 /// An HTTP request method.
@@ -102,6 +102,26 @@ pub fn parse_request(text: &str) -> Result<Request, ParseError> {
     }
 
     Ok(Request { method, target, version, headers })
+
+}
+
+/// Reads one request head (request line plus headers) from a reader.
+///
+/// Returns `Ok(None)` if the client closed the connection before
+/// sending a complete head.
+pub fn read_head<R: BufRead>(reader: &mut R) -> io::Result<Option<String>> {
+    let mut head = String::new();
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 {
+            return Ok(None);
+        }
+        let end_of_head = line == "\r\n" || line == "\n";
+        head.push_str(&line);
+        if end_of_head {
+            return Ok(Some(head));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -114,5 +134,18 @@ mod tests {
         assert_eq!(rl.method, Method::Get);
         assert_eq!(rl.target, "/index.html");
         assert_eq!(rl.version, Version::Http11);
+    }
+
+        #[test]
+    fn reads_until_blank_line() {
+        let mut input = &b"GET / HTTP/1.1\r\nHost: x\r\n\r\nBODY"[..];
+        let head = read_head(&mut input).unwrap().unwrap();
+        assert_eq!(head, "GET / HTTP/1.1\r\nHost: x\r\n\r\n");
+    }
+
+    #[test]
+    fn empty_input_means_closed() {
+        let mut input = &b""[..];
+        assert!(read_head(&mut input).unwrap().is_none());
     }
 }
