@@ -84,6 +84,14 @@ impl Request {
     pub fn header(&self, name: &str) -> Option<&str> {
         self.headers.get(&name.to_lowercase()).map(|v| v.as_str())
     }
+    /// Whether the connection should stay open after answering this request.
+    pub fn keep_alive(&self) -> bool {
+        match self.header("connection").map(|v| v.to_lowercase()) {
+            Some(v) if v == "close" => false,
+            Some(v) if v == "keep-alive" => true,
+            _ => self.version == Version::Http11,
+        }
+    }
 }
 
 /// Parses a complete request head (request line plus headers) from text.
@@ -136,7 +144,7 @@ mod tests {
         assert_eq!(rl.version, Version::Http11);
     }
 
-        #[test]
+    #[test]
     fn reads_until_blank_line() {
         let mut input = &b"GET / HTTP/1.1\r\nHost: x\r\n\r\nBODY"[..];
         let head = read_head(&mut input).unwrap().unwrap();
@@ -147,5 +155,15 @@ mod tests {
     fn empty_input_means_closed() {
         let mut input = &b""[..];
         assert!(read_head(&mut input).unwrap().is_none());
+    }
+
+    #[test]
+    fn keep_alive_defaults() {
+        let r11 = parse_request("GET / HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+        let r10 = parse_request("GET / HTTP/1.0\r\n\r\n").unwrap();
+        let close = parse_request("GET / HTTP/1.1\r\nConnection: close\r\n\r\n").unwrap();
+        assert!(r11.keep_alive());
+        assert!(!r10.keep_alive());
+        assert!(!close.keep_alive());
     }
 }

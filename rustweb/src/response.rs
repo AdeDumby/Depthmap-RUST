@@ -80,6 +80,12 @@ impl Response {
         self
     }
 
+    /// Adds a header to the response.
+    pub fn with_header(mut self, name: &str, value: &str) -> Self {
+        self.headers.push((name.to_string(), value.to_string()));
+        self
+    }
+
     /// Marks this as the answer to a `HEAD` request: headers only, no body.
     pub fn for_head(mut self) -> Self {
         self.head_only = true;
@@ -119,7 +125,7 @@ mod tests {
         assert!(text.ends_with("\r\n\r\nnope"));
     }
 
-        #[test]
+    #[test]
     fn head_keeps_length_but_drops_body() {
         let bytes = Response::new(StatusCode::Ok)
             .with_body("text/plain", b"hello".to_vec())
