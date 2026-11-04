@@ -4,3 +4,4 @@
 
 pub mod response;
 pub mod request;
+pub mod static_files;
