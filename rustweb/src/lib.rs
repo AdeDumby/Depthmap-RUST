@@ -2,4 +2,5 @@
 
 #![warn(missing_docs)]
 
+pub mod response;
 pub mod request;

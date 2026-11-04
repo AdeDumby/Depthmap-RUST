@@ -1,5 +1,6 @@
 use std::net::{TcpListener, TcpStream};
-use rustweb::request::parse_request;
+use rustweb::request::{parse_request, ParseError};
+use rustweb::response::{Response, StatusCode};
 use std::io::{Read, Write};
 
 fn handle_connection(mut stream: TcpStream) {
@@ -7,10 +8,14 @@ fn handle_connection(mut stream: TcpStream) {
     let n = stream.read(&mut buffer).unwrap();
     let text = String::from_utf8_lossy(&buffer[..n]);
     println!("{}", text);
-    match parse_request(&text) {
-        Ok(req) => println!("{:?} {} ua={:?}", req.method, req.target, req.header("User-Agent")),
-        Err(e) => println!("parse error: {:?}", e),
-    }
+    let response = match parse_request(&text) {
+        Ok(_) => Response::new(StatusCode::Ok)
+            .with_body("text/plain", b"Hello from rustweb\n".to_vec()),
+        Err(ParseError::Malformed) => Response::new(StatusCode::BadRequest),
+        Err(ParseError::UnsupportedMethod) => Response::new(StatusCode::NotImplemented),
+        Err(ParseError::UnsupportedVersion) => Response::new(StatusCode::VersionNotSupported),
+    };
+    stream.write_all(&response.to_bytes()).unwrap();
 
     let response = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nHello";
     stream.write_all(response.as_bytes()).unwrap();
